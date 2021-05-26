@@ -10,6 +10,10 @@ import sympy as sym
 
 
 def stokes_IPM(h, tot_iters, tol, numRefines, refine_type):
+
+    err_uL2 = np.zeros((tot_iters))
+    err_uH1 = np.zeros((tot_iters))
+    err_p = np.zeros((tot_iters))
     
     mesh0 = RectangleMesh(Point(0,0),Point(1.0,1.0), h, h)
 
@@ -19,30 +23,32 @@ def stokes_IPM(h, tot_iters, tol, numRefines, refine_type):
     inf_sup_val = calculate_inf_sup(mesh)
 
     x, y = sym.symbols('x[0], x[1]')
-    u1 = 2*x*y*(x-1)*(y-1)*-1*x*(x-1)*(2*y-1)
-    u2 = 2*x*y*(x-1)*(y-1)*y*(y-1)*(2*x-1)
-    f1 = -1*(sym.diff(sym.diff(u1, x), x) + sym.diff(sym.diff(u1, y), y))
-    f2 = -1*(sym.diff(sym.diff(u2, x), x) + sym.diff(sym.diff(u2, y), y))
-    u1 = sym.simplify(u1)
-    u2 = sym.simplify(u2)
-    f1 = sym.simplify(f1)
-    f2 = sym.simplify(f2)
+    # u1 = 2*x*y*(x-1)*(y-1)*-1*x*(x-1)*(2*y-1)
+    # u2 = 2*x*y*(x-1)*(y-1)*y*(y-1)*(2*x-1)
+    # f1 = -1*(sym.diff(sym.diff(u1, x), x) + sym.diff(sym.diff(u1, y), y))
+    # f2 = -1*(sym.diff(sym.diff(u2, x), x) + sym.diff(sym.diff(u2, y), y))
+    u1 = sym.cos(x)*sym.sin(y)
+    u2 = -1*sym.sin(x)*sym.cos(y)
+    p_var = -1*.25*(sym.cos(2.0*x) + sym.cos(2.0*y))
+    f1 = -1*(sym.diff(sym.diff(u1, x), x) + sym.diff(sym.diff(u1, y), y)) + sym.diff(p_var,x)
+    f2 = -1*(sym.diff(sym.diff(u2, x), x) + sym.diff(sym.diff(u2, y), y)) + sym.diff(p_var,y)
     u1_code = sym.printing.ccode(u1)
     u2_code = sym.printing.ccode(u2)
     f1_code = sym.printing.ccode(f1)
     f2_code = sym.printing.ccode(f2)
+    p_code = sym.printing.ccode(p_var)
 
 
     #Define the exact values of the velocity and pressure
     exact_u = Expression((u1_code,u2_code),degree=3)
-    exact_p = Expression("0.0",degree=3)
+    exact_p = Expression(p_code,degree=3)
 
     #Define the righthand side
     f = Expression((f1_code,f2_code), degree=2)
 
     #IPM parameters
-    g = 100
-    r = 100
+    g = 10
+    r = 10
 
     # Define Function Spaces
     X = VectorElement("Lagrange",mesh.ufl_cell(),2) #velocity space
@@ -66,7 +72,8 @@ def stokes_IPM(h, tot_iters, tol, numRefines, refine_type):
     print(dvg)
     i = 0
 
-    while dvg > tol and i<tot_iters:
+    # while dvg > tol and i<tot_iters:
+    while i<tot_iters:
         i = i + 1
         L = (dot(f,v) - div(wi)*div(v))*dx
         w = Function(W)
@@ -75,11 +82,14 @@ def stokes_IPM(h, tot_iters, tol, numRefines, refine_type):
         dvg = sqrt(assemble((div(w)*div(w))*dx))
         print(dvg)
         print("iteration number:" + str(i))
+        err_uL2[i-1] = errornorm(exact_u, w, norm_type='L2', degree_rise=3)
+        err_uH1[i-1] = errornorm(exact_u, w, norm_type='H1', degree_rise=3)
+        err_p[i-1] = sqrt(assemble((div(wi)-exact_p)*(div(wi)-exact_p)*dx))
 
-    # Comput error
-    err_uL2 = errornorm(exact_u, w, norm_type='L2', degree_rise=3)
-    err_uH1 = errornorm(exact_u, w, norm_type='H1', degree_rise=3)
-    err_p = sqrt(assemble((div(wi)-exact_p)*(div(wi)-exact_p)*dx))
+    # Compute error
+    # err_uL2 = errornorm(exact_u, w, norm_type='L2', degree_rise=3)
+    # err_uH1 = errornorm(exact_u, w, norm_type='H1', degree_rise=3)
+    # err_p = sqrt(assemble((div(wi)-exact_p)*(div(wi)-exact_p)*dx))
     #div_err = norm(un, norm_type='Hdiv0')
 
     # eu  = (w - exact_u )
