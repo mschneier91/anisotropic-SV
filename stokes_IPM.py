@@ -27,9 +27,11 @@ def stokes_IPM(h, tot_iters, tol, numRefines, refine_type):
     # u2 = 2*x*y*(x-1)*(y-1)*y*(y-1)*(2*x-1)
     # f1 = -1*(sym.diff(sym.diff(u1, x), x) + sym.diff(sym.diff(u1, y), y))
     # f2 = -1*(sym.diff(sym.diff(u2, x), x) + sym.diff(sym.diff(u2, y), y))
+    #u1 = 0
+    #u2 = 0
     u1 = sym.cos(x)*sym.sin(y)
     u2 = -1*sym.sin(x)*sym.cos(y)
-    p_var = -1*.25*(sym.cos(2.0*x) + sym.cos(2.0*y))
+    p_var = -1*.25*(sym.cos(2.0*x) + sym.cos(2.0*y)-sym.sin(2.0))
     f1 = -1*(sym.diff(sym.diff(u1, x), x) + sym.diff(sym.diff(u1, y), y)) + sym.diff(p_var,x)
     f2 = -1*(sym.diff(sym.diff(u2, x), x) + sym.diff(sym.diff(u2, y), y)) + sym.diff(p_var,y)
     u1_code = sym.printing.ccode(u1)
@@ -40,15 +42,15 @@ def stokes_IPM(h, tot_iters, tol, numRefines, refine_type):
 
 
     #Define the exact values of the velocity and pressure
-    exact_u = Expression((u1_code,u2_code),degree=3)
-    exact_p = Expression(p_code,degree=3)
+    exact_u = Expression((u1_code,u2_code),degree=5)
+    exact_p = Expression(p_code,degree=5)
 
     #Define the righthand side
-    f = Expression((f1_code,f2_code), degree=2)
+    f = Expression((f1_code,f2_code), degree=5)
 
     #IPM parameters
-    g = 10
-    r = 10
+    g = 100
+    r = 100
 
     # Define Function Spaces
     X = VectorElement("Lagrange",mesh.ufl_cell(),2) #velocity space
@@ -57,7 +59,7 @@ def stokes_IPM(h, tot_iters, tol, numRefines, refine_type):
     def boundary(x, on_boundary):
         return on_boundary
 
-    noslip = Constant((0,0))
+    noslip = exact_u #Constant((0,0))
     bc = DirichletBC(W,noslip,boundary)
 
     u = TrialFunction(W)
@@ -69,7 +71,7 @@ def stokes_IPM(h, tot_iters, tol, numRefines, refine_type):
     solve(a == L, w, bc)
     wi = w
     dvg = sqrt(assemble((div(w)*div(w))*dx))
-    print(dvg)
+    print("Initial residual: ", dvg)
     i = 0
 
     # while dvg > tol and i<tot_iters:
@@ -80,11 +82,14 @@ def stokes_IPM(h, tot_iters, tol, numRefines, refine_type):
         solve(a == L, w, bc)
         wi = wi + r*w
         dvg = sqrt(assemble((div(w)*div(w))*dx))
-        print(dvg)
+        print("\nresidual", dvg)
         print("iteration number:" + str(i))
         err_uL2[i-1] = errornorm(exact_u, w, norm_type='L2', degree_rise=3)
+        print("L2 velocity error: ", err_uL2[i-1])
         err_uH1[i-1] = errornorm(exact_u, w, norm_type='H1', degree_rise=3)
-        err_p[i-1] = sqrt(assemble((div(wi)-exact_p)*(div(wi)-exact_p)*dx))
+        print("H1 velocity error: ", err_uH1[i-1])
+        err_p[i-1] = sqrt(assemble((-div(wi)-exact_p)*(-div(wi)-exact_p)*dx))
+        print("L2 pressure error: ", err_p[i-1])
 
     # Compute error
     # err_uL2 = errornorm(exact_u, w, norm_type='L2', degree_rise=3)
