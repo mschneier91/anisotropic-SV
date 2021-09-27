@@ -4,7 +4,7 @@ import pdb
 
 def gen_barycenter_incenter_mesh_aspect(mesh,numRefines,refine_type):
 
-	#We do a barycentric refinement of the mesh so that the Scott-Vogelius element pair is stable
+	#We do a barycentric or incenter refinement of the mesh so that the Scott-Vogelius element pair is stable
     for iteration in range(numRefines):
         if(iteration == 0):
             a = mesh.cells()
@@ -73,10 +73,10 @@ def gen_barycenter_incenter_mesh_aspect(mesh,numRefines,refine_type):
         s = (e1+e2+e3)/2.0
         inradius = np.sqrt((s-e1)*(s-e2)*(s-e3)/s) #Herons formula (https://en.wikipedia.org/wiki/Incircle_and_excircles_of_a_triangle)
         #calculate local aspect ratio
-        rho_t = inradius/h_loc
+        rho_t = h_loc/inradius
         aspect_hold[i] = rho_t
 
-    rho = np.min(aspect_hold) #minimum aspect ratio over all cells
+    rho = np.max(aspect_hold) #minimum aspect ratio over all cells
 
     return cur_mesh, rho
 
